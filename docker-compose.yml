@@ -1,0 +1,145 @@
+version: "3"
+services:
+  mongodb:
+    image: mongo:latest
+    container_name: mongodb
+    hostname: mongodb
+    restart: on-failure
+    networks:
+      backend:
+        ipv4_address: 172.18.1.9
+    healthcheck:
+        test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/graylog --quiet
+        timeout: 5s
+        interval: 30s
+        retries: 3
+    volumes:
+      - /opt/docker/mongodb/data:/data/db:rw
+      - /opt/docker/mongodb/config:/data/configdb:rw
+      - /opt/docker/mongodb/log:/data/db/journal:rw
+  opensearch:
+    image: opensearchproject/opensearch:latest
+    container_name: opensearch
+    hostname: opensearch
+    restart: on-failure
+    networks:
+      frontend:
+        ipv4_address: 172.18.1.1
+    healthcheck:
+        test: ["CMD", "curl", "-kf", "http://172.18.1.1:9200/"]
+        timeout: 5s
+        interval: 30s
+        retries: 3
+    environment:
+      - cluster.name=opensearch-cluster
+      - discovery.type=single-node
+      - node.name=opensearch
+      - bootstrap.memory_lock=true
+      - action.auto_create_index=false
+      - plugins.security.ssl.http.enabled=false
+      - plugins.security.disabled=true
+      - OPENSEARCH_JAVA_OPTS=-Dlog4j2.formatMsgNoLookups=true -Xms512m -Xmx512m -Dhttps.protocols=TLSv1,TLSv1.1,TLSv1.2
+    ulimits:
+      memlock:
+        hard: -1
+        soft: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    ports:
+      - 9200:9200
+      - 9600:9600
+    volumes:
+      - /opt/docker/opensearch/data:/usr/share/opensearch/data:rw
+  graylog:
+    image: graylog/graylog-enterprise:5.1
+    container_name: graylog
+    hostname: graylog
+    restart: on-failure
+    depends_on:
+      opensearch:
+        condition: "service_healthy"
+      mongodb:
+        condition: "service_healthy"
+    networks:
+      frontend:
+        ipv4_address: 172.18.1.2
+      backend:
+        ipv4_address: 172.18.1.10
+    entrypoint: "/usr/bin/tini -- wait-for-it 172.18.1.1:9200 --  /docker-entrypoint.sh"
+    environment:
+      - GRAYLOG_IS_MASTER=true
+      - GRAYLOG_PASSWORD_SECRET=<GRAYLOG_SECRET_PASSWORD>
+      - GRAYLOG_ROOT_USERNAME=admin
+      - GRAYLOG_ROOT_PASSWORD_SHA2=<GRAYLOG_ROOT_PASSWORD>
+      - GRAYLOG_ROOT_EMAIL=<GRAYLOG_ROOT_EMAIL>
+      - GRAYLOG_ROOT_TIMEZONE=Europe/Paris
+      - GRAYLOG_HTTP_BIND_ADDRESS=0.0.0.0:9000
+      - GRAYLOG_MONGODB_URI=mongodb://172.18.1.9:27017/graylog
+      - GRAYLOG_TRANSPORT_EMAIL_ENABLED=true
+      #- GRAYLOG_TRANSPORT_EMAIL_PROTOCOL=smtp
+      - GRAYLOG_TRANSPORT_EMAIL_HOSTNAME=ssl0.ovh.net
+      - GRAYLOG_TRANSPORT_EMAIL_PORT=465
+      - GRAYLOG_TRANSPORT_EMAIL_USE_AUTH=true
+      - GRAYLOG_TRANSPORT_EMAIL_AUTH_USERNAME=<OVH_USERNAME>
+      - GRAYLOG_TRANSPORT_EMAIL_AUTH_PASSWORD=<OVH_PASSWORD>
+      - GRAYLOG_TRANSPORT_EMAIL_SUBJECT_PREFIX=[graylog] 
+      - GRAYLOG_TRANSPORT_EMAIL_FROM_EMAIL=graylog@<YOUR_DOMAIN>
+      - GRAYLOG_TRANSPORT_EMAIL_USE_TLS=false
+      - GRAYLOG_TRANSPORT_EMAIL_USE_SSL=true
+      - GRAYLOG_TRANSPORT_EMAIL_WEB_INTERFACE_URL=https://<YOUR_GRAYLOG_FQDN>/
+      - GRAYLOG_REPORT_DISABLE_SANDBOX=true
+    ports:
+      - 9000:9000
+      - 1514:1514
+      - 1514:1514/udp
+      - 12201:12201
+      - 12201:12201/udp
+    volumes:
+      - /opt/docker/graylog/data:/usr/share/graylog/data:rw
+      - /opt/docker/graylog/log:/usr/share/graylog/data/journal:rw
+      - /opt/docker/graylog/config:/usr/share/graylog/data/config:rw
+  nginx:
+    image: nginx:latest
+    container_name: nginx
+    hostname: nginx
+    restart: on-failure
+    depends_on:
+      opensearch:
+        condition: "service_healthy"
+      mongodb:
+        condition: "service_healthy"
+      graylog:
+        condition: "service_healthy"
+    networks:
+      frontend:
+        ipv4_address: 172.18.1.3
+    healthcheck:
+        test: ["CMD", "curl", "-kf", "https://172.18.1.3:443/"]
+        timeout: 5s
+        interval: 30s
+        retries: 3
+    ports:
+      - 80:80
+      - 443:443
+    volumes:
+      - /opt/docker/ssl/graylog.key:/etc/ssl/private/graylog.key
+      - /opt/docker/ssl/graylog-fullchain.crt:/etc/ssl/graylog.crt
+      - /opt/docker/nginx/log:/var/log/nginx/:rw
+      - /opt/docker/nginx/config:/etc/nginx/conf.d/:rw
+
+networks:
+  frontend:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.18.1.0/29
+          gateway: 172.18.1.6
+  backend:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.18.1.8/29
+          gateway: 172.18.1.14
