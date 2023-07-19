@@ -4,7 +4,7 @@ services:
     image: mongo:latest
     container_name: mongodb
     hostname: mongodb
-    restart: on-failure
+    restart: unless-stopped
     networks:
       backend:
         ipv4_address: 172.18.1.9
@@ -21,7 +21,7 @@ services:
     image: opensearchproject/opensearch:latest
     container_name: opensearch
     hostname: opensearch
-    restart: on-failure
+    restart: unless-stopped
     networks:
       frontend:
         ipv4_address: 172.18.1.1
@@ -55,7 +55,7 @@ services:
     image: graylog/graylog-enterprise:5.1
     container_name: graylog
     hostname: graylog
-    restart: on-failure
+    restart: unless-stopped
     depends_on:
       opensearch:
         condition: "service_healthy"
@@ -77,7 +77,6 @@ services:
       - GRAYLOG_HTTP_BIND_ADDRESS=0.0.0.0:9000
       - GRAYLOG_MONGODB_URI=mongodb://172.18.1.9:27017/graylog
       - GRAYLOG_TRANSPORT_EMAIL_ENABLED=true
-      #- GRAYLOG_TRANSPORT_EMAIL_PROTOCOL=smtp
       - GRAYLOG_TRANSPORT_EMAIL_HOSTNAME=ssl0.ovh.net
       - GRAYLOG_TRANSPORT_EMAIL_PORT=465
       - GRAYLOG_TRANSPORT_EMAIL_USE_AUTH=true
@@ -103,7 +102,7 @@ services:
     image: nginx:latest
     container_name: nginx
     hostname: nginx
-    restart: on-failure
+    restart: unless-stopped
     depends_on:
       opensearch:
         condition: "service_healthy"
