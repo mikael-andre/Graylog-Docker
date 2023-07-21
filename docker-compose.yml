@@ -1,131 +1,156 @@
 version: "3"
 services:
   mongodb:
-    image: mongo:latest
-    container_name: mongodb
-    hostname: mongodb
-    restart: unless-stopped
+    image: mongo:${MONGO_VERSION}
+    container_name: ${MONGO_CONTAINERNAME}
+    hostname: ${MONGO_HOSTNAME}
+    restart: ${CONTAINER_RESTARTOPTION}
     networks:
       backend:
-        ipv4_address: 172.18.1.9
+        ipv4_address: ${MONGO_IPADDRESS}
     healthcheck:
-        test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/graylog --quiet
-        timeout: 5s
-        interval: 30s
-        retries: 3
+        test: echo 'db.runCommand("ping").ok' | mongosh localhost:${MONGO_PORT}/${MONGO_DBNAME} --quiet
+        timeout: ${CONTAINER_HEALTHTIMEOUT}
+        interval: ${CONTAINER_HEALTHINTERVAL}
+        retries: ${CONTAINER_HEALTHRETRIES}
     volumes:
-      - /opt/docker/mongodb/data:/data/db:rw
-      - /opt/docker/mongodb/config:/data/configdb:rw
-      - /opt/docker/mongodb/log:/data/db/journal:rw
+      - ${MONGO_DATAFOLDER}:/data/db:rw
+      - ${MONGO_CONFIGFOLDER}:/data/configdb:rw
+      - ${MONGO_LOGFOLDER}:/data/db/journal:rw
   opensearch:
-    image: opensearchproject/opensearch:latest
-    container_name: opensearch
-    hostname: opensearch
-    restart: unless-stopped
+    image: opensearchproject/opensearch:${OPENSEARCH_VERSION}
+    container_name: ${OPENSEARCH_CONTAINERNAME}
+    hostname: ${OPENSEARCH_HOSTNAME}
+    restart: ${CONTAINER_RESTARTOPTION}
     networks:
       frontend:
-        ipv4_address: 172.18.1.1
+        ipv4_address: ${OPENSEARCH_IPADDRESS}
     healthcheck:
-        test: ["CMD", "curl", "-kf", "http://172.18.1.1:9200/"]
-        timeout: 5s
-        interval: 30s
-        retries: 3
+        test: ["CMD", "curl", "-kf", "http://${OPENSEARCH_IPADDRESS}:${OPENSEARCH_RESTAPI}/"]
+        timeout: ${CONTAINER_HEALTHTIMEOUT}
+        interval: ${CONTAINER_HEALTHINTERVAL}
+        retries: ${CONTAINER_HEALTHRETRIES}
     environment:
-      - cluster.name=opensearch-cluster
+      - cluster.name=${OPENSEARCH_CLUSTERNAME}
       - discovery.type=single-node
-      - node.name=opensearch
+      - node.name=${OPENSEARCH_NODENAME}
       - bootstrap.memory_lock=true
       - action.auto_create_index=false
       - plugins.security.ssl.http.enabled=false
       - plugins.security.disabled=true
-      - OPENSEARCH_JAVA_OPTS=-Dlog4j2.formatMsgNoLookups=true -Xms512m -Xmx512m -Dhttps.protocols=TLSv1,TLSv1.1,TLSv1.2
+      - OPENSEARCH_JAVA_OPTS=${OPENSEARCH_JAVAOPTS}
     ulimits:
       memlock:
-        hard: -1
-        soft: -1
+        hard: ${OPENSEARCH_LIMHARDMEM}
+        soft: ${OPENSEARCH_LIMSOFTMEM}
       nofile:
-        soft: 65536
-        hard: 65536
+        soft: ${OPENSEARCH_LIMHARDNOFILE}
+        hard: ${OPENSEARCH_LIMSOFTNOFILE}
+
+
+
     ports:
-      - 9200:9200
-      - 9600:9600
+      - ${OPENSEARCH_RESTAPI}:${OPENSEARCH_RESTAPI}
+      - ${OPENSEARCH_PERF}:${OPENSEARCH_PERF}
     volumes:
-      - /opt/docker/opensearch/data:/usr/share/opensearch/data:rw
+      - ${OPENSEARCH_DATAFOLDER}:/usr/share/opensearch/data:rw
   graylog:
-    image: graylog/graylog-enterprise:5.1
-    container_name: graylog
-    hostname: graylog
-    restart: unless-stopped
+    image: graylog/graylog-enterprise:${GRAYLOG_VERSION}
+    container_name: ${GRAYLOG_CONTAINERNAME}
+    hostname: ${GRAYLOG_HOSTNAME}
+    restart: ${CONTAINER_RESTARTOPTION}
     depends_on:
       opensearch:
-        condition: "service_healthy"
+        condition: ${CONTAINER_HEALTHCONDITION}
       mongodb:
-        condition: "service_healthy"
+        condition: ${CONTAINER_HEALTHCONDITION}
+      geoipupdate:
+        condition: ${CONTAINER_HEALTHCONDITION}
     networks:
       frontend:
-        ipv4_address: 172.18.1.2
+        ipv4_address: ${GRAYLOG_IPADDRESS}
       backend:
-        ipv4_address: 172.18.1.10
-    entrypoint: "/usr/bin/tini -- wait-for-it 172.18.1.1:9200 --  /docker-entrypoint.sh"
+        ipv4_address: ${GRAYLOG_BACKIPADDRESS}
+    entrypoint: "/usr/bin/tini -- wait-for-it ${OPENSEARCH_IPADDRESS}:${OPENSEARCH_RESTAPI} --  /docker-entrypoint.sh"
     environment:
-      - GRAYLOG_IS_MASTER=true
-      - GRAYLOG_PASSWORD_SECRET=<GRAYLOG_SECRET_PASSWORD>
-      - GRAYLOG_ROOT_USERNAME=admin
-      - GRAYLOG_ROOT_PASSWORD_SHA2=<GRAYLOG_ROOT_PASSWORD>
-      - GRAYLOG_ROOT_EMAIL=<GRAYLOG_ROOT_EMAIL>
-      - GRAYLOG_ROOT_TIMEZONE=Europe/Paris
-      - GRAYLOG_HTTP_BIND_ADDRESS=0.0.0.0:9000
-      - GRAYLOG_MONGODB_URI=mongodb://172.18.1.9:27017/graylog
-      - GRAYLOG_TRANSPORT_EMAIL_ENABLED=true
-      - GRAYLOG_TRANSPORT_EMAIL_HOSTNAME=ssl0.ovh.net
-      - GRAYLOG_TRANSPORT_EMAIL_PORT=465
-      - GRAYLOG_TRANSPORT_EMAIL_USE_AUTH=true
-      - GRAYLOG_TRANSPORT_EMAIL_AUTH_USERNAME=<OVH_USERNAME>
-      - GRAYLOG_TRANSPORT_EMAIL_AUTH_PASSWORD=<OVH_PASSWORD>
-      - GRAYLOG_TRANSPORT_EMAIL_SUBJECT_PREFIX=[graylog] 
-      - GRAYLOG_TRANSPORT_EMAIL_FROM_EMAIL=graylog@<YOUR_DOMAIN>
-      - GRAYLOG_TRANSPORT_EMAIL_USE_TLS=false
-      - GRAYLOG_TRANSPORT_EMAIL_USE_SSL=true
-      - GRAYLOG_TRANSPORT_EMAIL_WEB_INTERFACE_URL=https://<YOUR_GRAYLOG_FQDN>/
+      - GRAYLOG_IS_MASTER=${GRAYLOG_MASTER}
+      - GRAYLOG_PASSWORD_SECRET=${GRAYLOG_SECRETPASSWORD}
+      - GRAYLOG_ROOT_USERNAME=${GRAYLOG_ROOTUSERNAME}
+      - GRAYLOG_ROOT_PASSWORD_SHA2=${GRAYLOG_ROOTPASSWORDSHA2}
+      - GRAYLOG_ROOT_EMAIL=${GRAYLOG_ROOTEMAIL}
+      - GRAYLOG_ROOT_TIMEZONE=${GRAYLOG_ROOTTIMEZONE}
+      - GRAYLOG_HTTP_BIND_ADDRESS=0.0.0.0:${GRAYLOG_GUIPORT}
+      - GRAYLOG_MONGODB_URI=mongodb://${MONGO_IPADDRESS}:${MONGO_PORT}/${MONGO_DBNAME}
+      - GRAYLOG_TRANSPORT_EMAIL_ENABLED=${GRAYLOG_EMAILENABLED}
+      - GRAYLOG_TRANSPORT_EMAIL_HOSTNAME=${GRAYLOG_EMAILSERVER}
+      - GRAYLOG_TRANSPORT_EMAIL_PORT=${GRAYLOG_EMAILSERVERPORT}
+      - GRAYLOG_TRANSPORT_EMAIL_USE_AUTH=${GRAYLOG_EMAILAUTH}
+      - GRAYLOG_TRANSPORT_EMAIL_AUTH_USERNAME=${GRAYLOG_EMAILUSERNAME}
+      - GRAYLOG_TRANSPORT_EMAIL_AUTH_PASSWORD=${GRAYLOG_EMAILPASSWORD}
+      - GRAYLOG_TRANSPORT_EMAIL_SUBJECT_PREFIX=${GRAYLOG_EMAILSUBJPREFIX}
+      - GRAYLOG_TRANSPORT_EMAIL_FROM_EMAIL=${GRAYLOG_EMAILFROM}
+      - GRAYLOG_TRANSPORT_EMAIL_USE_TLS=${GRAYLOG_EMAILTLS}
+      - GRAYLOG_TRANSPORT_EMAIL_USE_SSL=${GRAYLOG_EMAILSSL}
+      - GRAYLOG_TRANSPORT_EMAIL_WEB_INTERFACE_URL=${GRAYLOG_EMAILURL}
       - GRAYLOG_REPORT_DISABLE_SANDBOX=true
     ports:
-      - 9000:9000
-      - 1514:1514
-      - 1514:1514/udp
-      - 12201:12201
-      - 12201:12201/udp
+      - ${GRAYLOG_GUIPORT}:${GRAYLOG_GUIPORT}
+      - ${GRAYLOG_INPUTSYSLOG}:${GRAYLOG_INPUTSYSLOG}
+      - ${GRAYLOG_INPUTSYSLOG}:${GRAYLOG_INPUTSYSLOG}/udp
+      - ${GRAYLOG_INPUTGLEF}:${GRAYLOG_INPUTGLEF}
+      - ${GRAYLOG_INPUTGLEF}:${GRAYLOG_INPUTGLEF}/udp
     volumes:
-      - /opt/docker/graylog/data:/usr/share/graylog/data:rw
-      - /opt/docker/graylog/log:/usr/share/graylog/data/journal:rw
-      - /opt/docker/graylog/config:/usr/share/graylog/data/config:rw
+      - ${GRAYLOG_DATAFOLDER}:/usr/share/graylog/data:rw
+      - ${GRAYLOG_LOGFOLDER}:/usr/share/graylog/data/journal:rw
+      - ${GRAYLOG_CONFIGFOLDER}:/usr/share/graylog/data/config:rw
+      - ${GEOIPUPDATE_DATAFOLDER}/GeoLite2-ASN.mmdb:/usr/share/graylog/data/config/GeoLite2-ASN.mmdb:r
+      - ${GEOIPUPDATE_DATAFOLDER}/GeoLite2-City.mmdb:/usr/share/graylog/data/config/GeoLite2-City.mmdb:r
+      - ${GEOIPUPDATE_DATAFOLDER}/GeoLite2-Country.mmdb:/usr/share/graylog/data/config/GeoLite2-Country.mmdb:r
   nginx:
-    image: nginx:latest
-    container_name: nginx
-    hostname: nginx
-    restart: unless-stopped
+    image: nginx:${NGINX_VERSION}
+    container_name: ${NGINX_CONTAINERNAME}
+    hostname: ${NGINX_HOSTNAME}
+    restart: ${CONTAINER_RESTARTOPTION}
     depends_on:
       opensearch:
-        condition: "service_healthy"
+        condition: ${CONTAINER_HEALTHCONDITION}
       mongodb:
-        condition: "service_healthy"
+        condition: ${CONTAINER_HEALTHCONDITION}
       graylog:
-        condition: "service_healthy"
+        condition: ${CONTAINER_HEALTHCONDITION}
     networks:
       frontend:
-        ipv4_address: 172.18.1.3
+        ipv4_address: ${NGINX_IPADDRESS}
     healthcheck:
-        test: ["CMD", "curl", "-kf", "https://172.18.1.3:443/"]
-        timeout: 5s
-        interval: 30s
-        retries: 3
+        test: ["CMD", "curl", "-kf", "https://${NGINX_IPADDRESS}:${NGINX_TLSPORT}/"]
+        timeout: ${CONTAINER_HEALTHTIMEOUT}
+        interval: ${CONTAINER_HEALTHINTERVAL}
+        retries: ${CONTAINER_HEALTHRETRIES}
     ports:
-      - 80:80
-      - 443:443
+      - ${NGINX_HTTPPORT}:${NGINX_HTTPPORT}
+      - ${NGINX_TLSPORT}:${NGINX_TLSPORT}
     volumes:
-      - /opt/docker/ssl/graylog.key:/etc/ssl/private/graylog.key
-      - /opt/docker/ssl/graylog-fullchain.crt:/etc/ssl/graylog.crt
-      - /opt/docker/nginx/log:/var/log/nginx/:rw
-      - /opt/docker/nginx/config:/etc/nginx/conf.d/:rw
+      - ${SSL_KEYFILE}:/etc/ssl/private/graylog.key
+      - ${SSL_CERTFILE}:/etc/ssl/graylog.crt
+      - ${NGINX_LOGFOLDER}:/var/log/nginx/:rw
+      - ${NGINX_CONFIGFOLDER}:/etc/nginx/conf.d/:rw
+  geoipupdate:
+    image: ghcr.io/maxmind/geoipupdate
+    container_name: ${GEOIPUPDATE_CONTAINERNAME}
+    hostname: ${GEOIPUPDATE_HOSTNAME}
+    restart: ${CONTAINER_RESTARTOPTION}
+    environment:
+      - GEOIPUPDATE_HOST=${GEOIPUPDATE_HOST}
+      - GEOIPUPDATE_PRESERVE_FILE_TIMES=0
+      - GEOIPUPDATE_ACCOUNT_ID=${GEOIPUPDATE_ACCOUNTID}
+      - GEOIPUPDATE_LICENSE_KEY=${GEOIPUPDATE_LICENSEKEY}
+      - GEOIPUPDATE_EDITION_IDS=${GEOIPUPDATE_EDITIONS}
+      - GEOIPUPDATE_FREQUENCY=${GEOIPUPDATE_FREQUENCY}
+    networks:
+      frontend:
+        ipv4_address: ${GEOIPUPDATE_IPADDRESS}
+    volumes:
+      - ${GEOIPUPDATE_DATAFOLDER}:/usr/share/GeoIP:rw
 
 networks:
   frontend:
@@ -133,12 +158,12 @@ networks:
     ipam:
       driver: default
       config:
-        - subnet: 172.18.1.0/29
-          gateway: 172.18.1.6
+        - subnet: ${FRONTEND_NETWORK}
+          gateway: ${FRONTEND_GATEWAY}
   backend:
     driver: bridge
     ipam:
       driver: default
       config:
-        - subnet: 172.18.1.8/29
-          gateway: 172.18.1.14
+        - subnet: ${BACKEND_NETWORK}
+          gateway: ${BACKEND_GATEWAY}
