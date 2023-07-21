@@ -97,8 +97,8 @@ services:
       - ${GRAYLOG_GUIPORT}:${GRAYLOG_GUIPORT}
       - ${GRAYLOG_INPUTSYSLOG}:${GRAYLOG_INPUTSYSLOG}
       - ${GRAYLOG_INPUTSYSLOG}:${GRAYLOG_INPUTSYSLOG}/udp
-      - ${GRAYLOG_INPUTGLEF}:${GRAYLOG_INPUTGLEF}
-      - ${GRAYLOG_INPUTGLEF}:${GRAYLOG_INPUTGLEF}/udp
+      - ${GRAYLOG_INPUTGELF}:${GRAYLOG_INPUTGELF}
+      - ${GRAYLOG_INPUTGELF}:${GRAYLOG_INPUTGELF}/udp
     volumes:
       - ${GRAYLOG_DATAFOLDER}:/usr/share/graylog/data:rw
       - ${GRAYLOG_LOGFOLDER}:/usr/share/graylog/data/journal:rw
