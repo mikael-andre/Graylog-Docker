@@ -46,9 +46,6 @@ services:
       nofile:
         soft: ${OPENSEARCH_LIMHARDNOFILE}
         hard: ${OPENSEARCH_LIMSOFTNOFILE}
-
-
-
     ports:
       - ${OPENSEARCH_RESTAPI}:${OPENSEARCH_RESTAPI}
       - ${OPENSEARCH_PERF}:${OPENSEARCH_PERF}
