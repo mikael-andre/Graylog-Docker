@@ -44,8 +44,8 @@ services:
         hard: ${OPENSEARCH_LIMHARDMEM}
         soft: ${OPENSEARCH_LIMSOFTMEM}
       nofile:
-        soft: ${OPENSEARCH_LIMHARDNOFILE}
-        hard: ${OPENSEARCH_LIMSOFTNOFILE}
+        hard: ${OPENSEARCH_LIMHARDNOFILE}
+        soft: ${OPENSEARCH_LIMSOFTNOFILE}
     ports:
       - ${OPENSEARCH_RESTAPI}:${OPENSEARCH_RESTAPI}
       - ${OPENSEARCH_PERF}:${OPENSEARCH_PERF}
